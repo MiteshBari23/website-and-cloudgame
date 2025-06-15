@@ -1,9 +1,11 @@
 {
-  "name": "cloud-ball-app",
+  "name": "robot-website",
   "version": "1.0.0",
   "main": "server/index.js",
   "scripts": {
-    "dev": "vite",
+    "dev:client": "vite",
+    "dev:server": "node server/index.js",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build": "vite build",
     "start": "node server/index.js"
   },
@@ -17,6 +19,10 @@
   },
   "devDependencies": {
     "vite": "^6.3.5",
-    "@vitejs/plugin-react": "^4.2.1"
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
