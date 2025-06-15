@@ -2,55 +2,100 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
-const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // Optional for dev
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
-app.get('/', (req, res) => {
-    res.json({ message: 'Robot Server is running' });
-});
-
 app.use(cors());
 
-// ✅ Serve React static build
-app.use(express.static(path.join(__dirname, "../dist")));
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../dist", "index.html"));
+// Optional health check
+app.get("/", (req, res) => {
+  res.send("🤖 WebRTC Robot Server is running");
 });
 
-// ✅ Socket events
+// Store connected clients
+const phones = {};
+const laptops = {};
+
 io.on("connection", (socket) => {
-  console.log("⚡ User connected:", socket.id);
+  console.log("🔌 Connected:", socket.id);
 
-  socket.on("move-ball", (direction) => {
-    console.log("🔄 move-ball:", direction);
-    socket.broadcast.emit("move-ball", direction);
+  // 🔧 Phone registers
+  socket.on("register_phone", () => {
+    phones[socket.id] = socket;
+    console.log("📱 Phone registered:", socket.id);
+    io.emit("available_phones", Object.keys(phones));
   });
 
-  socket.on("toggle-camera", (status) => {
-    console.log("🎥 toggle-camera:", status);
-    io.emit("toggle-camera", status);
+  // 💻 Laptop registers
+  socket.on("register_laptop", () => {
+    laptops[socket.id] = socket;
+    console.log("💻 Laptop registered:", socket.id);
+    io.emit("available_phones", Object.keys(phones));
   });
 
-  socket.on("camera-frame", (data) => {
-    io.emit("camera-frame", data);
+  // 📞 Laptop asks to start stream from phone
+  socket.on("request_stream", (targetPhoneId) => {
+    if (phones[targetPhoneId]) {
+      console.log(`📡 Laptop ${socket.id} requested stream from phone ${targetPhoneId}`);
+      phones[targetPhoneId].emit("start_webrtc_offer", socket.id);
+    }
   });
 
+  // 📤 Phone sends SDP offer to laptop
+  socket.on("sdp_offer_from_phone", ({ offer, laptopSocketId }) => {
+    if (laptops[laptopSocketId]) {
+      laptops[laptopSocketId].emit("sdp_offer_from_phone", {
+        offer,
+        phoneSocketId: socket.id
+      });
+    }
+  });
+
+  // 📥 Laptop sends SDP answer to phone
+  socket.on("sdp_answer_from_laptop", ({ answer, phoneSocketId }) => {
+    if (phones[phoneSocketId]) {
+      phones[phoneSocketId].emit("sdp_answer_from_laptop", { answer });
+    }
+  });
+
+  // ❄️ ICE candidates
+  socket.on("ice_candidate_from_phone", ({ candidate, laptopSocketId }) => {
+    if (laptops[laptopSocketId]) {
+      laptops[laptopSocketId].emit("ice_candidate_from_phone", { candidate });
+    }
+  });
+
+  socket.on("ice_candidate_from_laptop", ({ candidate, phoneSocketId }) => {
+    if (phones[phoneSocketId]) {
+      phones[phoneSocketId].emit("ice_candidate_from_laptop", { candidate });
+    }
+  });
+
+  // 🕹️ Control command from laptop to phone
+  socket.on("control", ({ phoneSocketId, command }) => {
+    if (phones[phoneSocketId]) {
+      phones[phoneSocketId].emit("control", { command });
+    }
+  });
+
+  // 🔌 Cleanup on disconnect
   socket.on("disconnect", () => {
-    console.log("❌ User disconnected:", socket.id);
+    console.log("❌ Disconnected:", socket.id);
+    delete phones[socket.id];
+    delete laptops[socket.id];
+    io.emit("available_phones", Object.keys(phones));
   });
 });
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
