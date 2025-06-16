@@ -14,6 +14,10 @@ app.use(cors({
   credentials: true // Allow cookies/auth if needed
 }));
 
+app.get("/", (req, res) => {
+  res.send("Robot server is running.");
+});
+
 const server = http.createServer(app);
 
 // Set up CORS for Socket.IO
