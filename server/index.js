@@ -6,7 +6,7 @@ const { Server } = require("socket.io");
 const app = express();
 
 // Define allowed origin (e.g., your frontend URL)
-const allowedOrigin = "http://localhost:3000"; // or your deployed frontend domain
+const allowedOrigin = "https://robot-website-dx5m.vercel.app/"; // or your deployed frontend domain
 
 // Set up CORS for Express
 app.use(cors({
