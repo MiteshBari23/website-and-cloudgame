@@ -4,98 +4,44 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 
 const app = express();
+
+// Define allowed origin (e.g., your frontend URL)
+const allowedOrigin = "http://localhost:3000"; // or your deployed frontend domain
+
+// Set up CORS for Express
+app.use(cors({
+  origin: allowedOrigin,
+  credentials: true // Allow cookies/auth if needed
+}));
+
 const server = http.createServer(app);
 
+// Set up CORS for Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: allowedOrigin,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
-app.use(cors());
-
-// Optional health check
-app.get("/", (req, res) => {
-  res.send("🤖 WebRTC Robot Server is running");
-});
-
-// Store connected clients
-const phones = {};
-const laptops = {};
-
 io.on("connection", (socket) => {
-  console.log("🔌 Connected:", socket.id);
+  console.log("✅ Client connected:", socket.id);
 
-  // 🔧 Phone registers
-  socket.on("register_phone", () => {
-    phones[socket.id] = socket;
-    console.log("📱 Phone registered:", socket.id);
-    io.emit("available_phones", Object.keys(phones));
+  socket.on("move", (direction) => {
+    socket.broadcast.emit("move", direction);
   });
 
-  // 💻 Laptop registers
-  socket.on("register_laptop", () => {
-    laptops[socket.id] = socket;
-    console.log("💻 Laptop registered:", socket.id);
-    io.emit("available_phones", Object.keys(phones));
+  socket.on("camera-data", (chunk) => {
+    socket.broadcast.emit("camera-data", chunk);
   });
 
-  // 📞 Laptop asks to start stream from phone
-  socket.on("request_stream", (targetPhoneId) => {
-    if (phones[targetPhoneId]) {
-      console.log(`📡 Laptop ${socket.id} requested stream from phone ${targetPhoneId}`);
-      phones[targetPhoneId].emit("start_webrtc_offer", socket.id);
-    }
-  });
-
-  // 📤 Phone sends SDP offer to laptop
-  socket.on("sdp_offer_from_phone", ({ offer, laptopSocketId }) => {
-    if (laptops[laptopSocketId]) {
-      laptops[laptopSocketId].emit("sdp_offer_from_phone", {
-        offer,
-        phoneSocketId: socket.id
-      });
-    }
-  });
-
-  // 📥 Laptop sends SDP answer to phone
-  socket.on("sdp_answer_from_laptop", ({ answer, phoneSocketId }) => {
-    if (phones[phoneSocketId]) {
-      phones[phoneSocketId].emit("sdp_answer_from_laptop", { answer });
-    }
-  });
-
-  // ❄️ ICE candidates
-  socket.on("ice_candidate_from_phone", ({ candidate, laptopSocketId }) => {
-    if (laptops[laptopSocketId]) {
-      laptops[laptopSocketId].emit("ice_candidate_from_phone", { candidate });
-    }
-  });
-
-  socket.on("ice_candidate_from_laptop", ({ candidate, phoneSocketId }) => {
-    if (phones[phoneSocketId]) {
-      phones[phoneSocketId].emit("ice_candidate_from_laptop", { candidate });
-    }
-  });
-
-  // 🕹️ Control command from laptop to phone
-  socket.on("control", ({ phoneSocketId, command }) => {
-    if (phones[phoneSocketId]) {
-      phones[phoneSocketId].emit("control", { command });
-    }
-  });
-
-  // 🔌 Cleanup on disconnect
   socket.on("disconnect", () => {
-    console.log("❌ Disconnected:", socket.id);
-    delete phones[socket.id];
-    delete laptops[socket.id];
-    io.emit("available_phones", Object.keys(phones));
+    console.log("❌ Client disconnected:", socket.id);
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Server listening on port ${PORT}`);
 });
