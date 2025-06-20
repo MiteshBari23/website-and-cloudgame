@@ -1,51 +1,42 @@
 const express = require("express");
 const http = require("http");
-const cors = require("cors");
+const path = require("path");
 const { Server } = require("socket.io");
 
 const app = express();
-
-// Define allowed origin (e.g., your frontend URL)
-const allowedOrigin = "https://robot-website-dx5m.vercel.app/"; // or your deployed frontend domain
-
-// Set up CORS for Express
-app.use(cors({
-  origin: allowedOrigin,
-  credentials: true // Allow cookies/auth if needed
-}));
-
-app.get("/", (req, res) => {
-  res.send("Robot server is running.");
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*" },
 });
 
-const server = http.createServer(app);
+app.use(express.static(path.join(__dirname, "public")));
 
-// Set up CORS for Socket.IO
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigin,
-    methods: ["GET", "POST"],
-    credentials: true
-  }
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 io.on("connection", (socket) => {
-  console.log("✅ Client connected:", socket.id);
+  console.log("📲 Client connected:", socket.id);
 
-  socket.on("move", (direction) => {
-    socket.broadcast.emit("move", direction);
+  socket.on("pose-change", (pose) => {
+    console.log(`🔄 Relaying pose: ${pose}`);
+    socket.broadcast.emit("pose-change", pose);
   });
 
-  socket.on("camera-data", (chunk) => {
-    socket.broadcast.emit("camera-data", chunk);
+  socket.on("camera-frame", (data) => {
+    socket.broadcast.emit("camera-frame", data);
+  });
+
+  socket.on("start-camera", () => {
+    socket.broadcast.emit("start-camera");
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ Client disconnected:", socket.id);
+    console.log("❌ Disconnected:", socket.id);
   });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
